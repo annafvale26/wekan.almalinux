@@ -1,0 +1,146 @@
+#!/bin/bash
+# Autor: Anna Vale
+# Testado e homologado para a versão do Wekan
+#
+# O Wekan é um quadro Kanban de código aberto que permite criar tarefas baseadas em cartões e gerenciamento de pendências.
+# Wekan permite criar tabuleiros nos quais os cartões podem ser movidos entre várias Colunas. As tarefas podem ter vários 
+# membros simultâneos, o que facilita a colaboração. Você pode atribuir etiquetas coloridas aos cartões para facilitar o 
+# agrupamento e a filtragem; além disso, você pode adicionar membros a um cartão, por exemplo, atribuir uma tarefa a alguém.
+#
+# Kanban é uma estratégia para otimizar o fluxo de valor para partes interessadas através de um processo que utiliza um 
+# sistema visual que limita a quantidade de trabalho em andamento através de um sistema de acompanhamento de etapas.
+#
+# Informações que serão solicitadas na configuração via Web do Wekan
+# Não tem conta? Criar conta
+#   Nome do usuário: annafvale
+#   Email: anna.vale@bancoarbi.com.br
+#   Senha: annafvale <Criar Conta>
+#
+# Site Oficial do Projeto: https://wekan.github.io/
+#
+# Variável da Data Inicial para calcular o tempo de execução do script (VARIÁVEL MELHORADA)
+# opção do comando date: +%T (Time)
+HORAINICIAL=$(date +%T)
+#
+# Variáveis para validar o ambiente, verificando se o usuário é "root" e se o kernel é >=5.14
+USUARIO=$(id -u)
+KERNEL=$(uname -r | cut -d'.' -f1,2)
+#
+# Variável do caminho do Log dos Script utilizado nesse curso (VARIÁVEL MELHORADA)
+# $0 (variável de ambiente do nome do comando)
+LOG="/var/log/$(basename $0)"
+#
+# Declarando as variáveis de configuração do Wekan
+PORT="3000"
+IP="192.168.60.245"
+URL="http://$IP:$PORT"
+#
+# Verificando se o usuário é Root e o Kernel é >=5.14 <IF MELHORADO>
+clear
+if [ "$USUARIO" == "0" ] && [ "$(echo $KERNEL | cut -d'.' -f1)" -ge "5" ] && [ "$(echo $KERNEL | cut -d'.' -f2)" -ge "14" ]
+then
+    echo -e "O usuário é Root, continuando com o script..."
+    echo -e "Kernel é >= 5.14, continuando com o script..."
+    sleep 5
+else
+    echo -e "Usuário não é Root ($USUARIO) ou Kernel não é >=5.14 ($KERNEL)"
+    echo -e "Caso você não tenha executado o script com o comando: sudo -i"
+    echo -e "Execute novamente o script para verificar o ambiente."
+    exit 1
+fi
+#
+# Verificando se as dependências do Wekan estão instaladas
+echo -n "Verificando as dependências do Wekan, aguarde... "
+for name in snapd
+do
+    if ! rpm -q $name &> /dev/null; then
+        echo -en "\n\nO software: $name precisa ser instalado. \nUse o comando 'dnf install $name'\n"
+        deps=1
+    fi
+done
+if [ "$deps" -ne 1 ]; then
+    echo "Dependências.: OK"
+else
+    echo -en "\nInstale as dependências acima e execute novamente este script\n"
+    exit 1
+fi
+sleep 5
+#    
+# Verificando se as portas 3000 e 27019 estão sendo utilizadas no servidor
+if ss -ltn | grep ':3000' &> /dev/null; then
+    echo -e "A porta: 3000 já está sendo utilizada nesse servidor.\n"
+    echo -e "Verifique a porta e o serviço associada a ela e execute novamente esse script.\n"
+    exit 1
+else
+    echo -e "A porta: 3000 está disponível, continuando com o script..."
+    sleep 3
+fi
+#
+if ss -ltn | grep ':27019' &> /dev/null; then
+    echo -e "A porta: 27019 já está sendo utilizada nesse servidor.\n"
+    echo -e "Verifique a porta e o serviço associada a ela e execute novamente esse script.\n"
+    exit 1
+else
+    echo -e "A porta: 27019 está disponível, continuando com o script..."
+    sleep 3
+fi
+#
+# Script de instalação do Wekan no AlmaLinux 9.x
+echo -e "Início do script $0 em: $(date +%d/%m/%Y-"("%H:%M")")\n" &>> $LOG
+#
+clear
+echo -e "Instalação do Wekan no AlmaLinux 9.x\n"
+echo -e "Após a instalação do Wekan acesse a URL: http://$(hostname -I | cut -d' ' -f1):3000\n"
+echo -e "Aguarde, esse processo demora um pouco dependendo do seu Link de Internet...\n"
+sleep 5
+#
+echo -e "Atualizando as listas do DNF, aguarde..."
+dnf update -y &>> $LOG
+echo -e "Listas atualizadas com sucesso!!!, continuando com o script..."
+sleep 5
+echo
+#
+echo -e "Instalando o Snapd, aguarde..."
+dnf install -y snapd &>> $LOG
+echo -e "Snapd instalado com sucesso!!!, continuando com o script..."
+sleep 5
+echo
+#
+echo -e "Habilitando o Snapd, aguarde..."
+systemctl enable --now snapd.socket &>> $LOG
+ln -s /var/lib/snapd/snap /snap &>> $LOG
+echo -e "Snapd habilitado com sucesso!!!, continuando com o script..."
+sleep 5
+echo
+#
+echo -e "Instalando o Wekan, aguarde...\n"
+snap install wekan &>> $LOG
+echo -e "Wekan instalado com sucesso!!!, continuando com o script..."
+sleep 5
+echo
+#
+echo -e "Configurando a URL, Porta e Reinicializando o Serviço do Wekan, aguarde..."
+snap set wekan port=$PORT &>> $LOG
+snap set wekan root-url=$URL &>> $LOG
+systemctl restart snap.wekan.wekan &>> $LOG
+echo -e "Wekan configurado com sucesso!!!, continuando com o script..."
+sleep 5
+echo
+#
+echo -e "Verificando as portas de conexão do Wekan e do MongoDB, aguarde..."
+ss -ltn | grep '3000\|27019'
+echo -e "Portas verificadas com sucesso!!!, continuando com o script..."
+sleep 5
+echo
+#
+echo -e "Instalação do Wekan feita com Sucesso!!!."
+# script para calcular o tempo gasto (SCRIPT MELHORADO, CORRIGIDO FALHA DE HORA:MINUTO:SEGUNDOS)
+HORAFINAL=$(date +%T)
+HORAINICIAL01=$(date -u -d "$HORAINICIAL" +"%s")
+HORAFINAL01=$(date -u -d "$HORAFINAL" +"%s")
+TEMPO=$(date -u -d "0 $HORAFINAL01 sec - $HORAINICIAL01 sec" +"%H:%M:%S")
+echo -e "Tempo gasto para execução do script $0: $TEMPO"
+echo -e "Pressione <Enter> para concluir o processo."
+echo -e "Fim do script $0 em: $(date +%d/%m/%Y-"("%H:%M")")\n" &>> $LOG
+read
+exit 1
